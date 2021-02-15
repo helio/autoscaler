@@ -46,6 +46,11 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	apiv1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
+	storagev1beta1 "k8s.io/api/storage/v1beta1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
 	schedulerframework "k8s.io/kubernetes/pkg/scheduler/framework"
 
@@ -69,11 +74,11 @@ func TestScaleUpOK(t *testing.T) {
 			{"n2", 1000, 1000, 0, true, "ng2"},
 		},
 		Pods: []PodConfig{
-			{"p1", 80, 0, 0, "n1", false},
-			{"p2", 800, 0, 0, "n2", false},
+			{"p1", 80, 0, 0, "n1", false, nil},
+			{"p2", 800, 0, 0, "n2", false, nil},
 		},
-		ExtraPods: []PodConfig{
-			{"p-new", 500, 0, 0, "", false},
+		DxtraPods: []PodConfig{
+			{"p-new", 500, 0, 0, "", false, nil},
 		},
 		Options:                 defaultOptions,
 		ExpansionOptionToChoose: GroupSizeChange{GroupName: "ng2", SizeChange: 1},
@@ -96,16 +101,16 @@ func TestMixedScaleUp(t *testing.T) {
 			{"n2", 1000, 100, 0, true, "ng2"},
 		},
 		Pods: []PodConfig{
-			{"p1", 80, 0, 0, "n1", false},
-			{"p2", 800, 0, 0, "n2", false},
+			{"p1", 80, 0, 0, "n1", false, nil},
+			{"p2", 800, 0, 0, "n2", false, nil},
 		},
 		ExtraPods: []PodConfig{
 			// can only be scheduled on ng2
-			{"triggering", 900, 0, 0, "", false},
+			{"triggering", 900, 0, 0, "", false, nil},
 			// can't be scheduled
-			{"remaining", 2000, 0, 0, "", false},
+			{"remaining", 2000, 0, 0, "", false, nil},
 			// can only be scheduled on ng1
-			{"awaiting", 0, 200, 0, "", false},
+			{"awaiting", 0, 200, 0, "", false, nil},
 		},
 		Options:                 defaultOptions,
 		ExpansionOptionToChoose: GroupSizeChange{GroupName: "ng2", SizeChange: 1},
@@ -131,12 +136,12 @@ func TestScaleUpMaxCoresLimitHit(t *testing.T) {
 			{"n2", 4000, 1000, 0, true, "ng2"},
 		},
 		Pods: []PodConfig{
-			{"p1", 1000, 0, 0, "n1", false},
-			{"p2", 3000, 0, 0, "n2", false},
+			{"p1", 1000, 0, 0, "n1", false, nil},
+			{"p2", 3000, 0, 0, "n2", false, nil},
 		},
 		ExtraPods: []PodConfig{
-			{"p-new-1", 2000, 0, 0, "", false},
-			{"p-new-2", 2000, 0, 0, "", false},
+			{"p-new-1", 2000, 0, 0, "", false, nil},
+			{"p-new-2", 2000, 0, 0, "", false, nil},
 		},
 		ExpansionOptionToChoose: GroupSizeChange{GroupName: "ng1", SizeChange: 2},
 		Options:                 options,
@@ -160,12 +165,12 @@ func TestScaleUpMaxCoresLimitHitWithNotAutoscaledGroup(t *testing.T) {
 			{"n2", 4000, 1000, 0, true, ""},
 		},
 		Pods: []PodConfig{
-			{"p1", 1000, 0, 0, "n1", false},
-			{"p2", 3000, 0, 0, "n2", false},
+			{"p1", 1000, 0, 0, "n1", false, nil},
+			{"p2", 3000, 0, 0, "n2", false, nil},
 		},
 		ExtraPods: []PodConfig{
-			{"p-new-1", 2000, 0, 0, "", false},
-			{"p-new-2", 2000, 0, 0, "", false},
+			{"p-new-1", 2000, 0, 0, "", false, nil},
+			{"p-new-2", 2000, 0, 0, "", false, nil},
 		},
 		ExpansionOptionToChoose: GroupSizeChange{GroupName: "ng1", SizeChange: 2},
 		Options:                 options,
@@ -189,13 +194,13 @@ func TestScaleUpMaxMemoryLimitHit(t *testing.T) {
 			{"n2", 4000, 1000 * utils.MiB, 0, true, "ng2"},
 		},
 		Pods: []PodConfig{
-			{"p1", 1000, 0, 0, "n1", false},
-			{"p2", 3000, 0, 0, "n2", false},
+			{"p1", 1000, 0, 0, "n1", false, nil},
+			{"p2", 3000, 0, 0, "n2", false, nil},
 		},
 		ExtraPods: []PodConfig{
-			{"p-new-1", 2000, 100 * utils.MiB, 0, "", false},
-			{"p-new-2", 2000, 100 * utils.MiB, 0, "", false},
-			{"p-new-3", 2000, 100 * utils.MiB, 0, "", false},
+			{"p-new-1", 2000, 100 * utils.MiB, 0, "", false, nil},
+			{"p-new-2", 2000, 100 * utils.MiB, 0, "", false, nil},
+			{"p-new-3", 2000, 100 * utils.MiB, 0, "", false, nil},
 		},
 		ExpansionOptionToChoose: GroupSizeChange{GroupName: "ng1", SizeChange: 3},
 		Options:                 options,
@@ -219,13 +224,13 @@ func TestScaleUpMaxMemoryLimitHitWithNotAutoscaledGroup(t *testing.T) {
 			{"n2", 4000, 1000 * utils.MiB, 0, true, ""},
 		},
 		Pods: []PodConfig{
-			{"p1", 1000, 0, 0, "n1", false},
-			{"p2", 3000, 0, 0, "n2", false},
+			{"p1", 1000, 0, 0, "n1", false, nil},
+			{"p2", 3000, 0, 0, "n2", false, nil},
 		},
 		ExtraPods: []PodConfig{
-			{"p-new-1", 2000, 100 * utils.MiB, 0, "", false},
-			{"p-new-2", 2000, 100 * utils.MiB, 0, "", false},
-			{"p-new-3", 2000, 100 * utils.MiB, 0, "", false},
+			{"p-new-1", 2000, 100 * utils.MiB, 0, "", false, nil},
+			{"p-new-2", 2000, 100 * utils.MiB, 0, "", false, nil},
+			{"p-new-3", 2000, 100 * utils.MiB, 0, "", false, nil},
 		},
 		ExpansionOptionToChoose: GroupSizeChange{GroupName: "ng1", SizeChange: 3},
 		Options:                 options,
@@ -249,13 +254,13 @@ func TestScaleUpCapToMaxTotalNodesLimit(t *testing.T) {
 			{"n2", 4000, 1000 * utils.MiB, 0, true, "ng2"},
 		},
 		Pods: []PodConfig{
-			{"p1", 1000, 0, 0, "n1", false},
-			{"p2", 3000, 0, 0, "n2", false},
+			{"p1", 1000, 0, 0, "n1", false, nil},
+			{"p2", 3000, 0, 0, "n2", false, nil},
 		},
 		ExtraPods: []PodConfig{
-			{"p-new-1", 4000, 100 * utils.MiB, 0, "", false},
-			{"p-new-2", 4000, 100 * utils.MiB, 0, "", false},
-			{"p-new-3", 4000, 100 * utils.MiB, 0, "", false},
+			{"p-new-1", 4000, 100 * utils.MiB, 0, "", false, nil},
+			{"p-new-2", 4000, 100 * utils.MiB, 0, "", false, nil},
+			{"p-new-3", 4000, 100 * utils.MiB, 0, "", false, nil},
 		},
 		ExpansionOptionToChoose: GroupSizeChange{GroupName: "ng2", SizeChange: 3},
 		Options:                 options,
@@ -279,13 +284,13 @@ func TestScaleUpCapToMaxTotalNodesLimitWithNotAutoscaledGroup(t *testing.T) {
 			{"n2", 4000, 1000 * utils.MiB, 0, true, "ng2"},
 		},
 		Pods: []PodConfig{
-			{"p1", 1000, 0, 0, "n1", false},
-			{"p2", 3000, 0, 0, "n2", false},
+			{"p1", 1000, 0, 0, "n1", false, nil},
+			{"p2", 3000, 0, 0, "n2", false, nil},
 		},
 		ExtraPods: []PodConfig{
-			{"p-new-1", 4000, 100 * utils.MiB, 0, "", false},
-			{"p-new-2", 4000, 100 * utils.MiB, 0, "", false},
-			{"p-new-3", 4000, 100 * utils.MiB, 0, "", false},
+			{"p-new-1", 4000, 100 * utils.MiB, 0, "", false, nil},
+			{"p-new-2", 4000, 100 * utils.MiB, 0, "", false, nil},
+			{"p-new-3", 4000, 100 * utils.MiB, 0, "", false, nil},
 		},
 		ExpansionOptionToChoose: GroupSizeChange{GroupName: "ng2", SizeChange: 3},
 		Options:                 options,
@@ -309,11 +314,11 @@ func TestWillConsiderGpuAndStandardPoolForPodWhichDoesNotRequireGpu(t *testing.T
 			{"std-node-1", 2000, 1000 * utils.MiB, 0, true, "std-pool"},
 		},
 		Pods: []PodConfig{
-			{"gpu-pod-1", 2000, 1000 * utils.MiB, 1, "gpu-node-1", true},
-			{"std-pod-1", 2000, 1000 * utils.MiB, 0, "std-node-1", false},
+			{"gpu-pod-1", 2000, 1000 * utils.MiB, 1, "gpu-node-1", true, nil},
+			{"std-pod-1", 2000, 1000 * utils.MiB, 0, "std-node-1", false, nil},
 		},
 		ExtraPods: []PodConfig{
-			{"extra-std-pod", 2000, 1000 * utils.MiB, 0, "", true},
+			{"extra-std-pod", 2000, 1000 * utils.MiB, 0, "", true, nil},
 		},
 		ExpansionOptionToChoose: GroupSizeChange{GroupName: "std-pool", SizeChange: 1},
 		Options:                 options,
@@ -341,11 +346,11 @@ func TestWillConsiderOnlyGpuPoolForPodWhichDoesRequiresGpu(t *testing.T) {
 			{"std-node-1", 2000, 1000 * utils.MiB, 0, true, "std-pool"},
 		},
 		Pods: []PodConfig{
-			{"gpu-pod-1", 2000, 1000 * utils.MiB, 1, "gpu-node-1", true},
-			{"std-pod-1", 2000, 1000 * utils.MiB, 0, "std-node-1", false},
+			{"gpu-pod-1", 2000, 1000 * utils.MiB, 1, "gpu-node-1", true, nil},
+			{"std-pod-1", 2000, 1000 * utils.MiB, 0, "std-node-1", false, nil},
 		},
 		ExtraPods: []PodConfig{
-			{"extra-gpu-pod", 2000, 1000 * utils.MiB, 1, "", true},
+			{"extra-gpu-pod", 2000, 1000 * utils.MiB, 1, "", true, nil},
 		},
 		ExpansionOptionToChoose: GroupSizeChange{GroupName: "gpu-pool", SizeChange: 1},
 		Options:                 options,
@@ -374,15 +379,15 @@ func TestWillConsiderAllPoolsWhichFitTwoPodsRequiringGpus(t *testing.T) {
 			{"std-node-1", 2000, 1000 * utils.MiB, 0, true, "std-pool"},
 		},
 		Pods: []PodConfig{
-			{"gpu-pod-1", 2000, 1000 * utils.MiB, 1, "gpu-1-node-1", true},
-			{"gpu-pod-2", 2000, 1000 * utils.MiB, 2, "gpu-2-node-1", true},
-			{"gpu-pod-3", 2000, 1000 * utils.MiB, 4, "gpu-4-node-1", true},
-			{"std-pod-1", 2000, 1000 * utils.MiB, 0, "std-node-1", false},
+			{"gpu-pod-1", 2000, 1000 * utils.MiB, 1, "gpu-1-node-1", true, nil},
+			{"gpu-pod-2", 2000, 1000 * utils.MiB, 2, "gpu-2-node-1", true, nil},
+			{"gpu-pod-3", 2000, 1000 * utils.MiB, 4, "gpu-4-node-1", true, nil},
+			{"std-pod-1", 2000, 1000 * utils.MiB, 0, "std-node-1", false, nil},
 		},
 		ExtraPods: []PodConfig{
-			{"extra-gpu-pod-1", 1, 1 * utils.MiB, 1, "", true}, // CPU and mem negligible
-			{"extra-gpu-pod-2", 1, 1 * utils.MiB, 1, "", true}, // CPU and mem negligible
-			{"extra-gpu-pod-3", 1, 1 * utils.MiB, 1, "", true}, // CPU and mem negligible
+			{"extra-gpu-pod-1", 1, 1 * utils.MiB, 1, "", true, nil}, // CPU and mem negligible
+			{"extra-gpu-pod-2", 1, 1 * utils.MiB, 1, "", true, nil}, // CPU and mem negligible
+			{"extra-gpu-pod-3", 1, 1 * utils.MiB, 1, "", true, nil}, // CPU and mem negligible
 		},
 		ExpansionOptionToChoose: GroupSizeChange{GroupName: "gpu-1-pool", SizeChange: 3},
 		Options:                 options,
@@ -413,12 +418,12 @@ func TestNoScaleUpMaxCoresLimitHit(t *testing.T) {
 			{"n2", 4000, 1000, 0, true, "ng2"},
 		},
 		Pods: []PodConfig{
-			{"p1", 1000, 0, 0, "n1", false},
-			{"p2", 3000, 0, 0, "n2", false},
+			{"p1", 1000, 0, 0, "n1", false, nil},
+			{"p2", 3000, 0, 0, "n2", false, nil},
 		},
 		ExtraPods: []PodConfig{
-			{"p-new-1", 2000, 0, 0, "", false},
-			{"p-new-2", 2000, 0, 0, "", false},
+			{"p-new-1", 2000, 0, 0, "", false, nil},
+			{"p-new-2", 2000, 0, 0, "", false, nil},
 		},
 		Options: options,
 	}
@@ -496,6 +501,24 @@ func runSimpleScaleUpTest(t *testing.T, config *ScaleTestConfig) *ScaleTestResul
 	for _, p := range config.Pods {
 		pod := buildTestPod(p)
 		pods = append(pods, pod)
+	}
+
+	var objs []runtime.Object
+	for _, p := range config.Pvcs {
+		pvc := buildTestPVC(p)
+		objs = append(objs, pvc)
+	}
+	for _, s := range config.Scs {
+		sc := buildTestSC(s)
+		objs = append(objs, sc)
+	}
+	for _, csi := range config.Csi {
+		c := buildTestCSIDriver(csi)
+		objs = append(objs, c)
+	}
+	for _, cap := range config.Cap {
+		c := buildTestCSIStorageCapacity(cap)
+		objs = append(objs, c)
 	}
 
 	podLister := kube_util.NewTestPodLister(pods)
@@ -656,7 +679,78 @@ func buildTestPod(p PodConfig) *apiv1.Pod {
 	if p.Node != "" {
 		pod.Spec.NodeName = p.Node
 	}
+	for _, pvc := range p.Pvcs {
+		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, apiv1.VolumeMount{
+			Name:      pvc,
+			MountPath: "/" + pvc,
+		})
+		pod.Spec.Volumes = append(pod.Spec.Volumes, apiv1.Volume{
+			Name: pvc,
+			VolumeSource: apiv1.VolumeSource{
+				PersistentVolumeClaim: &apiv1.PersistentVolumeClaimVolumeSource{
+					ClaimName: pvc,
+				},
+			},
+		})
+	}
 	return pod
+}
+
+func buildTestPVC(p pvcConfig) *apiv1.PersistentVolumeClaim {
+	pvc := &apiv1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      p.name,
+			Namespace: "default",
+		},
+		Spec: apiv1.PersistentVolumeClaimSpec{
+			Resources: apiv1.ResourceRequirements{
+				Requests: apiv1.ResourceList{
+					apiv1.ResourceStorage: resource.MustParse(p.size),
+				},
+			},
+			StorageClassName: &p.storageclass,
+		},
+	}
+	return pvc
+}
+
+func buildTestSC(s scConfig) *storagev1.StorageClass {
+	mode := storagev1.VolumeBindingWaitForFirstConsumer
+	sc := &storagev1.StorageClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: s.name,
+		},
+		Provisioner:       s.provisioner,
+		VolumeBindingMode: &mode,
+	}
+	return sc
+}
+
+func buildTestCSIDriver(c csiDriverConfig) *storagev1.CSIDriver {
+	csi := &storagev1.CSIDriver{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: c.name,
+		},
+		Spec: storagev1.CSIDriverSpec{
+			StorageCapacity: &c.storageCapacity,
+		},
+	}
+	return csi
+}
+
+func buildTestCSIStorageCapacity(c csiStorageCapacityConfig) *storagev1beta1.CSIStorageCapacity {
+	quantity := resource.MustParse(c.capacity)
+	csi := &storagev1beta1.CSIStorageCapacity{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: c.name,
+		},
+		StorageClassName: c.storageClass,
+		NodeTopology: &metav1.LabelSelector{
+			MatchLabels: c.nodeLabels,
+		},
+		Capacity: &quantity,
+	}
+	return csi
 }
 
 func TestScaleUpUnhealthy(t *testing.T) {
@@ -1018,15 +1112,107 @@ func TestAuthError(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), "cluster_autoscaler_failed_scale_ups_total{reason=\"abcd\"} 1")
 }
 
-func simplifyScaleUpStatus(scaleUpStatus *status.ScaleUpStatus) ScaleUpStatusInfo {
-	remainUnschedulable := []string{}
-	for _, nsi := range scaleUpStatus.PodsRemainUnschedulable {
-		remainUnschedulable = append(remainUnschedulable, nsi.Pod.Name)
+func TestScaleUpLateBinding(t *testing.T) {
+	// A pod using an unbound PVC with late binding can be scheduled, so
+	// a cluster will get scaled up.
+	config := &scaleTestConfig{
+		nodes: []nodeConfig{
+			{"n1", 100, 100, 0, true, "ng1"},
+			{"n2", 1000, 1000, 0, true, "ng2"},
+		},
+		ExtraPods: []PodConfig{
+			{"p-new", 500, 0, 0, "", false, []string{"pvc1"}},
+		},
+		pvcs: []pvcConfig{
+			{"pvc1", "1Gi", "lvm-storage-class"},
+		},
+		scs: []scConfig{
+			{"lvm-storage-class", "lvm.example.com"},
+		},
+		Options:                 defaultOptions,
+		expansionOptionToChoose: groupSizeChange{groupName: "ng2", sizeChange: 1},
 	}
-	return ScaleUpStatusInfo{
-		Result:                  scaleUpStatus.Result,
-		PodsTriggeredScaleUp:    ExtractPodNames(scaleUpStatus.PodsTriggeredScaleUp),
-		PodsRemainUnschedulable: remainUnschedulable,
-		PodsAwaitEvaluation:     ExtractPodNames(scaleUpStatus.PodsAwaitEvaluation),
+	expectedResults := &scaleTestResults{
+		finalOption: groupSizeChange{groupName: "ng2", sizeChange: 1},
+		scaleUpStatus: scaleUpStatusInfo{
+			podsTriggeredScaleUp: []string{"p-new"},
+		},
 	}
+
+	simpleScaleUpTest(t, config, expectedResults)
+}
+
+func TestScaleUpNoStorage(t *testing.T) {
+	// When storage capacity tracking is enabled, a pod using an
+	// unbound PVC with late binding can be scheduled only if the
+	// node candidates are known to have capacity available, which
+	// isn't the case here.
+	config := &scaleTestConfig{
+		nodes: []nodeConfig{
+			{"n1", 100, 100, 0, true, "ng1"},
+			{"n2", 1000, 1000, 0, true, "ng2"},
+		},
+		ExtraPods: []PodConfig{
+			{"p-new", 500, 0, 0, "", false, []string{"pvc1"}},
+		},
+		pvcs: []pvcConfig{
+			{"pvc1", "1Gi", "lvm-storage-class"},
+		},
+		scs: []scConfig{
+			{"lvm-storage-class", "lvm.example.com"},
+		},
+		csi: []csiDriverConfig{
+			{"lvm.example.com", true},
+		},
+		Options:                 defaultOptions,
+		expansionOptionToChoose: groupSizeChange{groupName: "ng2", sizeChange: 1},
+	}
+	expectedResults := &scaleTestResults{
+		finalOption: groupSizeChange{},
+		scaleUpStatus: scaleUpStatusInfo{
+			podsRemainUnschedulable: []string{"p-new"},
+		},
+	}
+
+	simpleNoScaleUpTest(t, config, expectedResults)
+}
+
+func TestScaleUpEnoughStorage(t *testing.T) {
+	// When storage capacity tracking is enabled, a pod using an
+	// unbound PVC with late binding can be scheduled only if the
+	// node candidates are known to have capacity available.
+	// This can be configured for node candidates by giving them
+	// special labels (TODO: how?) and then manually creating
+	// CSIStorageCapacity objects for them.
+	config := &scaleTestConfig{
+		nodes: []nodeConfig{
+			{"n1", 100, 100, 0, true, "ng1"},
+			{"n2", 1000, 1000, 0, true, "ng2"},
+		},
+		ExtraPods: []PodConfig{
+			{"p-new", 500, 0, 0, "", false, []string{"pvc1"}},
+		},
+		pvcs: []pvcConfig{
+			{"pvc1", "1Gi", "lvm-storage-class"},
+		},
+		scs: []scConfig{
+			{"lvm-storage-class", "lvm.example.com"},
+		},
+		csi: []csiDriverConfig{
+			{"lvm.example.com", true},
+		},
+		cap: []csiStorageCapacityConfig{
+			{"abc", "lvm-storage-class", nil /* TODO: node labels */, "1Ti"},
+		},
+		Options:                 defaultOptions,
+		expansionOptionToChoose: groupSizeChange{groupName: "ng2", sizeChange: 1},
+	}
+	expectedResults := &scaleTestResults{
+		finalOption: groupSizeChange{groupName: "ng2", sizeChange: 1},
+		scaleUpStatus: scaleUpStatusInfo{
+			podsTriggeredScaleUp: []string{"p-new"},
+		},
+	}
+
+	simpleScaleUpTest(t, config, expectedResults)
 }

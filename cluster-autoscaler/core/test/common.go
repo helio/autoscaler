@@ -78,6 +78,30 @@ type PodConfig struct {
 	Gpu          int64
 	Node         string
 	ToleratesGpu bool
+	Pvcs         []string
+}
+
+type PvcConfig struct {
+	Name         string
+	Size         string // must parse as a resource.Quantity
+	Storageclass string
+}
+
+type ScConfig struct {
+	Name        string
+	Provisioner string
+}
+
+type CsiDriverConfig struct {
+	Name            string
+	StorageCapacity bool
+}
+
+type CsiStorageCapacityConfig struct {
+	Mame         string
+	StorageClass string
+	NodeLabels   map[string]string
+	Capacity     string
 }
 
 // GroupSizeChange represents a change in group size
@@ -94,6 +118,10 @@ type ScaleTestConfig struct {
 	Options                 config.AutoscalingOptions
 	NodeDeletionTracker     *deletiontracker.NodeDeletionTracker
 	ExpansionOptionToChoose GroupSizeChange // this will be selected by assertingStrategy.BestOption
+	Pvcs                    []PvcConfig
+	Scs                     []ScConfig
+	Csi                     []CsiDriverConfig
+	Cap                     []CsiStorageCapacityConfig
 
 	ExpectedScaleDowns     []string
 	ExpectedScaleDownCount int
