@@ -36,6 +36,7 @@ import (
 	"k8s.io/autoscaler/cluster-autoscaler/core/scaledown/deletiontracker"
 	"k8s.io/autoscaler/cluster-autoscaler/core/scaledown/legacy"
 	core_utils "k8s.io/autoscaler/cluster-autoscaler/core/utils"
+	coreutils "k8s.io/autoscaler/cluster-autoscaler/core/utils"
 	"k8s.io/autoscaler/cluster-autoscaler/estimator"
 	"k8s.io/autoscaler/cluster-autoscaler/expander"
 	"k8s.io/autoscaler/cluster-autoscaler/metrics"
@@ -78,7 +79,7 @@ type StaticAutoscaler struct {
 	processors              *ca_processors.AutoscalingProcessors
 	processorCallbacks      *staticAutoscalerProcessorCallbacks
 	initialized             bool
-	ignoredTaints           taints.TaintKeySet
+	nodeTransformation      coreutils.NodeTransformation
 }
 
 type staticAutoscalerProcessorCallbacks struct {
@@ -173,7 +174,10 @@ func NewStaticAutoscaler(
 		processors:              processors,
 		processorCallbacks:      processorCallbacks,
 		clusterStateRegistry:    clusterStateRegistry,
-		ignoredTaints:           ignoredTaints,
+		nodeTransformation: coreutils.NodeTransformation{
+			IgnoredTaints:     ignoredTaints,
+			LabelReplacements: opts.LabelReplacements,
+		},
 	}
 }
 
@@ -293,7 +297,7 @@ func (a *StaticAutoscaler) RunOnce(currentTime time.Time) errors.AutoscalerError
 		return typedErr.AddPrefix("Initialize ClusterSnapshot")
 	}
 
-	nodeInfosForGroups, autoscalerError := a.processors.TemplateNodeInfoProvider.Process(autoscalingContext, readyNodes, daemonsets, a.ignoredTaints, currentTime)
+	nodeInfosForGroups, autoscalerError := a.processors.TemplateNodeInfoProvider.Process(autoscalingContext, readyNodes, daemonsets, &a.nodeTransformation, currentTime)
 	if autoscalerError != nil {
 		klog.Errorf("Failed to get node infos for groups: %v", autoscalerError)
 		return autoscalerError.AddPrefix("failed to build node infos for node groups: ")
@@ -458,7 +462,7 @@ func (a *StaticAutoscaler) RunOnce(currentTime time.Time) errors.AutoscalerError
 		scaleUpStart := time.Now()
 		metrics.UpdateLastTime(metrics.ScaleUp, scaleUpStart)
 
-		scaleUpStatus, typedErr = ScaleUp(autoscalingContext, a.processors, a.clusterStateRegistry, unschedulablePodsToHelp, readyNodes, daemonsets, nodeInfosForGroups, a.ignoredTaints)
+		scaleUpStatus, typedErr = ScaleUp(autoscalingContext, a.processors, a.clusterStateRegistry, unschedulablePodsToHelp, readyNodes, daemonsets, nodeInfosForGroups, &a.nodeTransformation)
 
 		metrics.UpdateDurationFromStart(metrics.ScaleUp, scaleUpStart)
 
@@ -766,7 +770,7 @@ func (a *StaticAutoscaler) obtainNodeLists(cp cloudprovider.CloudProvider) ([]*a
 	// our normal handling for booting up nodes deal with this.
 	// TODO: Remove this call when we handle dynamically provisioned resources.
 	allNodes, readyNodes = a.processors.CustomResourcesProcessor.FilterOutNodesWithUnreadyResources(a.AutoscalingContext, allNodes, readyNodes)
-	allNodes, readyNodes = taints.FilterOutNodesWithIgnoredTaints(a.ignoredTaints, allNodes, readyNodes)
+	allNodes, readyNodes = taints.FilterOutNodesWithIgnoredTaints(a.nodeTransformation.IgnoredTaints, allNodes, readyNodes)
 	return allNodes, readyNodes, nil
 }
 

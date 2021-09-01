@@ -51,6 +51,7 @@ import (
 	"k8s.io/autoscaler/cluster-autoscaler/simulator"
 	"k8s.io/autoscaler/cluster-autoscaler/utils/errors"
 	kube_util "k8s.io/autoscaler/cluster-autoscaler/utils/kubernetes"
+	"k8s.io/autoscaler/cluster-autoscaler/utils/replace"
 	"k8s.io/autoscaler/cluster-autoscaler/utils/units"
 	"k8s.io/autoscaler/cluster-autoscaler/version"
 	kube_client "k8s.io/client-go/kubernetes"
@@ -178,7 +179,13 @@ var (
 	regional                      = flag.Bool("regional", false, "Cluster is regional.")
 	newPodScaleUpDelay            = flag.Duration("new-pod-scale-up-delay", 0*time.Second, "Pods less than this old will not be considered for scale-up.")
 
-	ignoreTaintsFlag                   = multiStringFlag("ignore-taint", "Specifies a taint to ignore in node templates when considering to scale a node group")
+	ignoreTaintsFlag  = multiStringFlag("ignore-taint", "Specifies a taint to ignore in node templates when considering to scale a node group")
+	labelReplacements = func() *replace.Replacements {
+		repl := &replace.Replacements{}
+		flag.Var(repl, "replace-labels", "Specifies one or more regular expression replacements of the form ;<regexp>;<replacement>; (any other character as separator also allowed) which get applied one after the other to labels of a node to form a template node. Labels are represented as a single string with <key>=<value>. If the key is empty after replacement, the label gets removed.")
+		return repl
+	}()
+
 	balancingIgnoreLabelsFlag          = multiStringFlag("balancing-ignore-label", "Specifies a label to ignore in addition to the basic and cloud-provider set of labels when comparing if two node groups are similar")
 	balancingLabelsFlag                = multiStringFlag("balancing-label", "Specifies a label to use for comparing if two node groups are similar, rather than the built in heuristics. Setting this flag disables all other comparison logic, and cannot be combined with --balancing-ignore-label.")
 	awsUseStaticInstanceList           = flag.Bool("aws-use-static-instance-list", false, "Should CA fetch instance types in runtime or use a static list. AWS only")
@@ -275,6 +282,7 @@ func createAutoscalingOptions() config.AutoscalingOptions {
 		Regional:                           *regional,
 		NewPodScaleUpDelay:                 *newPodScaleUpDelay,
 		IgnoredTaints:                      *ignoreTaintsFlag,
+		LabelReplacements:                  *labelReplacements,
 		BalancingExtraIgnoredLabels:        *balancingIgnoreLabelsFlag,
 		BalancingLabels:                    *balancingLabelsFlag,
 		KubeConfigPath:                     *kubeConfigFile,
