@@ -36,7 +36,6 @@ import (
 	"k8s.io/autoscaler/cluster-autoscaler/metrics"
 	"k8s.io/autoscaler/cluster-autoscaler/processors/nodegroupset"
 	"k8s.io/autoscaler/cluster-autoscaler/processors/nodeinfosprovider"
-	"k8s.io/autoscaler/cluster-autoscaler/processors/status"
 	"k8s.io/autoscaler/cluster-autoscaler/utils/errors"
 	kube_util "k8s.io/autoscaler/cluster-autoscaler/utils/kubernetes"
 	. "k8s.io/autoscaler/cluster-autoscaler/utils/test"
@@ -77,7 +76,7 @@ func TestScaleUpOK(t *testing.T) {
 			{"p1", 80, 0, 0, "n1", false, nil},
 			{"p2", 800, 0, 0, "n2", false, nil},
 		},
-		DxtraPods: []PodConfig{
+		ExtraPods: []PodConfig{
 			{"p-new", 500, 0, 0, "", false, nil},
 		},
 		Options:                 defaultOptions,
