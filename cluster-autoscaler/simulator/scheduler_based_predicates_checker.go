@@ -60,10 +60,12 @@ func NewSchedulerBasedPredicateChecker(kubeClient kube_client.Interface, informe
 	}
 	sharedLister := NewDelegatingSchedulerSharedLister()
 
+	stopChannel := make(chan struct{})
+
 	framework, err := schedulerframeworkruntime.NewFramework(
 		scheduler_plugins.NewInTreeRegistry(),
 		&config.Profiles[0],
-		stop,
+		stopChannel,
 		schedulerframeworkruntime.WithInformerFactory(informerFactory),
 		schedulerframeworkruntime.WithSnapshotSharedLister(sharedLister),
 	)
@@ -73,7 +75,6 @@ func NewSchedulerBasedPredicateChecker(kubeClient kube_client.Interface, informe
 	}
 
 	if startInformer {
-		stopChannel := make(chan struct{})
 		informerFactory.Start(stopChannel)
 		synced := informerFactory.WaitForCacheSync(stopChannel)
 		for k, v := range synced {

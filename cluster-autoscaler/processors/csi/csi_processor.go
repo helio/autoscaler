@@ -33,13 +33,14 @@ import (
 // configured to check storage capacity.
 //
 // Without this processor, the following happens:
-// - autoscaler determines that it needs a new node to get volumes
-//   for a pending pod created
-// - the new node starts and is ready to run pods, but the CSI driver
-//   itself hasn't started running on it yet
-// - autoscaler checks for pending pods, finds that the pod still
-//   cannot run and asks for another node
-// - the CSI driver starts, creates volumes and the pod runs
+//   - autoscaler determines that it needs a new node to get volumes
+//     for a pending pod created
+//   - the new node starts and is ready to run pods, but the CSI driver
+//     itself hasn't started running on it yet
+//   - autoscaler checks for pending pods, finds that the pod still
+//     cannot run and asks for another node
+//   - the CSI driver starts, creates volumes and the pod runs
+//
 // => the extra node is redundant
 //
 // To determine whether a node will have a CSI driver, a heuristic is used: if
@@ -75,7 +76,7 @@ func (p csiProcessor) FilterOutNodesWithUnreadyResources(context *context.Autosc
 		if p.isReady(context, node) {
 			newReadyNodes = append(newReadyNodes, node)
 		} else {
-			nodesWithUnreadyCSI[node.Name] = kubernetes.GetUnreadyNodeCopy(node)
+			nodesWithUnreadyCSI[node.Name] = kubernetes.GetUnreadyNodeCopy(node, "csi not ready")
 		}
 	}
 	// Override any node with unready CSI with its "unready" copy

@@ -17,13 +17,13 @@ limitations under the License.
 package nodeinfosprovider
 
 import (
+	"k8s.io/autoscaler/cluster-autoscaler/core/utils"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	apiv1 "k8s.io/api/core/v1"
 	"k8s.io/autoscaler/cluster-autoscaler/context"
 	"k8s.io/autoscaler/cluster-autoscaler/utils/errors"
-	"k8s.io/autoscaler/cluster-autoscaler/utils/taints"
 	schedulerframework "k8s.io/kubernetes/pkg/scheduler/framework"
 )
 
@@ -40,8 +40,8 @@ func NewAnnotationNodeInfoProvider(t *time.Duration) *AnnotationNodeInfoProvider
 }
 
 // Process returns the nodeInfos set for this cluster.
-func (p *AnnotationNodeInfoProvider) Process(ctx *context.AutoscalingContext, nodes []*apiv1.Node, daemonsets []*appsv1.DaemonSet, ignoredTaints taints.TaintKeySet, currentTime time.Time) (map[string]*schedulerframework.NodeInfo, errors.AutoscalerError) {
-	nodeInfos, err := p.mixedTemplateNodeInfoProvider.Process(ctx, nodes, daemonsets, ignoredTaints, currentTime)
+func (p *AnnotationNodeInfoProvider) Process(ctx *context.AutoscalingContext, nodes []*apiv1.Node, daemonsets []*appsv1.DaemonSet, nodeTransformation *utils.NodeTransformation, currentTime time.Time) (map[string]*schedulerframework.NodeInfo, errors.AutoscalerError) {
+	nodeInfos, err := p.mixedTemplateNodeInfoProvider.Process(ctx, nodes, daemonsets, nodeTransformation, currentTime)
 	if err != nil {
 		return nil, err
 	}
