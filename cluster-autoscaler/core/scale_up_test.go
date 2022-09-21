@@ -18,6 +18,7 @@ package core
 
 import (
 	"fmt"
+	"k8s.io/autoscaler/cluster-autoscaler/processors/status"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -543,7 +544,7 @@ func runSimpleScaleUpTest(t *testing.T, config *ScaleTestConfig) *ScaleTestResul
 	assert.NotNil(t, provider)
 
 	// Create context with non-random expander strategy.
-	context, err := NewScaleTestAutoscalingContext(config.Options, &fake.Clientset{}, listers, provider, nil, nil)
+	context, err := NewScaleTestAutoscalingContext(config.Options, fake.NewSimpleClientset(objs...), listers, provider, nil, nil)
 	assert.NoError(t, err)
 
 	expander := reportingStrategy{
@@ -695,57 +696,57 @@ func buildTestPod(p PodConfig) *apiv1.Pod {
 	return pod
 }
 
-func buildTestPVC(p pvcConfig) *apiv1.PersistentVolumeClaim {
+func buildTestPVC(p PvcConfig) *apiv1.PersistentVolumeClaim {
 	pvc := &apiv1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      p.name,
+			Name:      p.Name,
 			Namespace: "default",
 		},
 		Spec: apiv1.PersistentVolumeClaimSpec{
 			Resources: apiv1.ResourceRequirements{
 				Requests: apiv1.ResourceList{
-					apiv1.ResourceStorage: resource.MustParse(p.size),
+					apiv1.ResourceStorage: resource.MustParse(p.Size),
 				},
 			},
-			StorageClassName: &p.storageclass,
+			StorageClassName: &p.Storageclass,
 		},
 	}
 	return pvc
 }
 
-func buildTestSC(s scConfig) *storagev1.StorageClass {
+func buildTestSC(s ScConfig) *storagev1.StorageClass {
 	mode := storagev1.VolumeBindingWaitForFirstConsumer
 	sc := &storagev1.StorageClass{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: s.name,
+			Name: s.Name,
 		},
-		Provisioner:       s.provisioner,
+		Provisioner:       s.Provisioner,
 		VolumeBindingMode: &mode,
 	}
 	return sc
 }
 
-func buildTestCSIDriver(c csiDriverConfig) *storagev1.CSIDriver {
+func buildTestCSIDriver(c CsiDriverConfig) *storagev1.CSIDriver {
 	csi := &storagev1.CSIDriver{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: c.name,
+			Name: c.Name,
 		},
 		Spec: storagev1.CSIDriverSpec{
-			StorageCapacity: &c.storageCapacity,
+			StorageCapacity: &c.StorageCapacity,
 		},
 	}
 	return csi
 }
 
-func buildTestCSIStorageCapacity(c csiStorageCapacityConfig) *storagev1beta1.CSIStorageCapacity {
-	quantity := resource.MustParse(c.capacity)
+func buildTestCSIStorageCapacity(c CsiStorageCapacityConfig) *storagev1beta1.CSIStorageCapacity {
+	quantity := resource.MustParse(c.Capacity)
 	csi := &storagev1beta1.CSIStorageCapacity{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: c.name,
+			Name: c.Name,
 		},
-		StorageClassName: c.storageClass,
+		StorageClassName: c.StorageClass,
 		NodeTopology: &metav1.LabelSelector{
-			MatchLabels: c.nodeLabels,
+			MatchLabels: c.NodeLabels,
 		},
 		Capacity: &quantity,
 	}
@@ -1114,27 +1115,27 @@ func TestAuthError(t *testing.T) {
 func TestScaleUpLateBinding(t *testing.T) {
 	// A pod using an unbound PVC with late binding can be scheduled, so
 	// a cluster will get scaled up.
-	config := &scaleTestConfig{
-		nodes: []nodeConfig{
+	config := &ScaleTestConfig{
+		Nodes: []NodeConfig{
 			{"n1", 100, 100, 0, true, "ng1"},
 			{"n2", 1000, 1000, 0, true, "ng2"},
 		},
 		ExtraPods: []PodConfig{
 			{"p-new", 500, 0, 0, "", false, []string{"pvc1"}},
 		},
-		pvcs: []pvcConfig{
+		Pvcs: []PvcConfig{
 			{"pvc1", "1Gi", "lvm-storage-class"},
 		},
-		scs: []scConfig{
+		Scs: []ScConfig{
 			{"lvm-storage-class", "lvm.example.com"},
 		},
 		Options:                 defaultOptions,
-		expansionOptionToChoose: groupSizeChange{groupName: "ng2", sizeChange: 1},
+		ExpansionOptionToChoose: GroupSizeChange{GroupName: "ng2", SizeChange: 1},
 	}
-	expectedResults := &scaleTestResults{
-		finalOption: groupSizeChange{groupName: "ng2", sizeChange: 1},
-		scaleUpStatus: scaleUpStatusInfo{
-			podsTriggeredScaleUp: []string{"p-new"},
+	expectedResults := &ScaleTestResults{
+		FinalOption: GroupSizeChange{GroupName: "ng2", SizeChange: 1},
+		ScaleUpStatus: ScaleUpStatusInfo{
+			PodsTriggeredScaleUp: []string{"p-new"},
 		},
 	}
 
@@ -1146,30 +1147,30 @@ func TestScaleUpNoStorage(t *testing.T) {
 	// unbound PVC with late binding can be scheduled only if the
 	// node candidates are known to have capacity available, which
 	// isn't the case here.
-	config := &scaleTestConfig{
-		nodes: []nodeConfig{
+	config := &ScaleTestConfig{
+		Nodes: []NodeConfig{
 			{"n1", 100, 100, 0, true, "ng1"},
 			{"n2", 1000, 1000, 0, true, "ng2"},
 		},
 		ExtraPods: []PodConfig{
 			{"p-new", 500, 0, 0, "", false, []string{"pvc1"}},
 		},
-		pvcs: []pvcConfig{
+		Pvcs: []PvcConfig{
 			{"pvc1", "1Gi", "lvm-storage-class"},
 		},
-		scs: []scConfig{
+		Scs: []ScConfig{
 			{"lvm-storage-class", "lvm.example.com"},
 		},
-		csi: []csiDriverConfig{
+		Csi: []CsiDriverConfig{
 			{"lvm.example.com", true},
 		},
 		Options:                 defaultOptions,
-		expansionOptionToChoose: groupSizeChange{groupName: "ng2", sizeChange: 1},
+		ExpansionOptionToChoose: GroupSizeChange{GroupName: "ng2", SizeChange: 1},
 	}
-	expectedResults := &scaleTestResults{
-		finalOption: groupSizeChange{},
-		scaleUpStatus: scaleUpStatusInfo{
-			podsRemainUnschedulable: []string{"p-new"},
+	expectedResults := &ScaleTestResults{
+		FinalOption: GroupSizeChange{},
+		ScaleUpStatus: ScaleUpStatusInfo{
+			PodsRemainUnschedulable: []string{"p-new"},
 		},
 	}
 
@@ -1183,35 +1184,48 @@ func TestScaleUpEnoughStorage(t *testing.T) {
 	// This can be configured for node candidates by giving them
 	// special labels (via regex replace and/or labels on the node pool)
 	// and then manually creating CSIStorageCapacity objects for them.
-	config := &scaleTestConfig{
-		nodes: []nodeConfig{
+	config := &ScaleTestConfig{
+		Nodes: []NodeConfig{
 			{"n1", 100, 100, 0, true, "ng1"},
 			{"n2", 1000, 1000, 0, true, "ng2"},
 		},
 		ExtraPods: []PodConfig{
 			{"p-new", 500, 0, 0, "", false, []string{"pvc1"}},
 		},
-		pvcs: []pvcConfig{
+		Pvcs: []PvcConfig{
 			{"pvc1", "1Gi", "lvm-storage-class"},
 		},
-		scs: []scConfig{
+		Scs: []ScConfig{
 			{"lvm-storage-class", "lvm.example.com"},
 		},
-		csi: []csiDriverConfig{
+		Csi: []CsiDriverConfig{
 			{"lvm.example.com", true},
 		},
-		cap: []csiStorageCapacityConfig{
+		Cap: []CsiStorageCapacityConfig{
 			{"abc", "lvm-storage-class", nil /* TODO: node labels */, "1Ti"},
 		},
 		Options:                 defaultOptions,
-		expansionOptionToChoose: groupSizeChange{groupName: "ng2", sizeChange: 1},
+		ExpansionOptionToChoose: GroupSizeChange{GroupName: "ng2", SizeChange: 1},
 	}
-	expectedResults := &scaleTestResults{
-		finalOption: groupSizeChange{groupName: "ng2", sizeChange: 1},
-		scaleUpStatus: scaleUpStatusInfo{
-			podsTriggeredScaleUp: []string{"p-new"},
+	expectedResults := &ScaleTestResults{
+		FinalOption: GroupSizeChange{GroupName: "ng2", SizeChange: 1},
+		ScaleUpStatus: ScaleUpStatusInfo{
+			PodsTriggeredScaleUp: []string{"p-new"},
 		},
 	}
 
 	simpleScaleUpTest(t, config, expectedResults)
+}
+
+func simplifyScaleUpStatus(scaleUpStatus *status.ScaleUpStatus) ScaleUpStatusInfo {
+	remainUnschedulable := []string{}
+	for _, nsi := range scaleUpStatus.PodsRemainUnschedulable {
+		remainUnschedulable = append(remainUnschedulable, nsi.Pod.Name)
+	}
+	return ScaleUpStatusInfo{
+		Result:                  scaleUpStatus.Result,
+		PodsTriggeredScaleUp:    ExtractPodNames(scaleUpStatus.PodsTriggeredScaleUp),
+		PodsRemainUnschedulable: remainUnschedulable,
+		PodsAwaitEvaluation:     ExtractPodNames(scaleUpStatus.PodsAwaitEvaluation),
+	}
 }

@@ -98,7 +98,7 @@ type CsiDriverConfig struct {
 }
 
 type CsiStorageCapacityConfig struct {
-	Mame         string
+	Name         string
 	StorageClass string
 	NodeLabels   map[string]string
 	Capacity     string

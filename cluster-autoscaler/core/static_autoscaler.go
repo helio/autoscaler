@@ -36,7 +36,6 @@ import (
 	"k8s.io/autoscaler/cluster-autoscaler/core/scaledown/deletiontracker"
 	"k8s.io/autoscaler/cluster-autoscaler/core/scaledown/legacy"
 	core_utils "k8s.io/autoscaler/cluster-autoscaler/core/utils"
-	coreutils "k8s.io/autoscaler/cluster-autoscaler/core/utils"
 	"k8s.io/autoscaler/cluster-autoscaler/estimator"
 	"k8s.io/autoscaler/cluster-autoscaler/expander"
 	"k8s.io/autoscaler/cluster-autoscaler/metrics"
@@ -79,7 +78,7 @@ type StaticAutoscaler struct {
 	processors              *ca_processors.AutoscalingProcessors
 	processorCallbacks      *staticAutoscalerProcessorCallbacks
 	initialized             bool
-	nodeTransformation      coreutils.NodeTransformation
+	nodeTransformation      core_utils.NodeTransformation
 }
 
 type staticAutoscalerProcessorCallbacks struct {
@@ -174,7 +173,7 @@ func NewStaticAutoscaler(
 		processors:              processors,
 		processorCallbacks:      processorCallbacks,
 		clusterStateRegistry:    clusterStateRegistry,
-		nodeTransformation: coreutils.NodeTransformation{
+		nodeTransformation: core_utils.NodeTransformation{
 			IgnoredTaints:     ignoredTaints,
 			LabelReplacements: opts.LabelReplacements,
 		},
