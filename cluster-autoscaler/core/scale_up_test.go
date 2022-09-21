@@ -47,7 +47,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	apiv1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
-	storagev1beta1 "k8s.io/api/storage/v1beta1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -738,9 +737,9 @@ func buildTestCSIDriver(c CsiDriverConfig) *storagev1.CSIDriver {
 	return csi
 }
 
-func buildTestCSIStorageCapacity(c CsiStorageCapacityConfig) *storagev1beta1.CSIStorageCapacity {
+func buildTestCSIStorageCapacity(c CsiStorageCapacityConfig) *storagev1.CSIStorageCapacity {
 	quantity := resource.MustParse(c.Capacity)
-	csi := &storagev1beta1.CSIStorageCapacity{
+	csi := &storagev1.CSIStorageCapacity{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: c.Name,
 		},
