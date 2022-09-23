@@ -51,8 +51,10 @@ import (
 	"k8s.io/autoscaler/cluster-autoscaler/simulator"
 	"k8s.io/autoscaler/cluster-autoscaler/utils/errors"
 	kube_util "k8s.io/autoscaler/cluster-autoscaler/utils/kubernetes"
+	"k8s.io/autoscaler/cluster-autoscaler/utils/replace"
 	"k8s.io/autoscaler/cluster-autoscaler/utils/units"
 	"k8s.io/autoscaler/cluster-autoscaler/version"
+	"k8s.io/client-go/informers"
 	kube_client "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -179,7 +181,13 @@ var (
 	regional                      = flag.Bool("regional", false, "Cluster is regional.")
 	newPodScaleUpDelay            = flag.Duration("new-pod-scale-up-delay", 0*time.Second, "Pods less than this old will not be considered for scale-up.")
 
-	ignoreTaintsFlag                   = multiStringFlag("ignore-taint", "Specifies a taint to ignore in node templates when considering to scale a node group")
+	ignoreTaintsFlag  = multiStringFlag("ignore-taint", "Specifies a taint to ignore in node templates when considering to scale a node group")
+	labelReplacements = func() *replace.Replacements {
+		repl := &replace.Replacements{}
+		flag.Var(repl, "replace-labels", "Specifies one or more regular expression replacements of the form ;<regexp>;<replacement>; (any other character as separator also allowed) which get applied one after the other to labels of a node to form a template node. Labels are represented as a single string with <key>=<value>. If the key is empty after replacement, the label gets removed.")
+		return repl
+	}()
+
 	balancingIgnoreLabelsFlag          = multiStringFlag("balancing-ignore-label", "Specifies a label to ignore in addition to the basic and cloud-provider set of labels when comparing if two node groups are similar")
 	balancingLabelsFlag                = multiStringFlag("balancing-label", "Specifies a label to use for comparing if two node groups are similar, rather than the built in heuristics. Setting this flag disables all other comparison logic, and cannot be combined with --balancing-ignore-label.")
 	awsUseStaticInstanceList           = flag.Bool("aws-use-static-instance-list", false, "Should CA fetch instance types in runtime or use a static list. AWS only")
@@ -276,6 +284,7 @@ func createAutoscalingOptions() config.AutoscalingOptions {
 		Regional:                           *regional,
 		NewPodScaleUpDelay:                 *newPodScaleUpDelay,
 		IgnoredTaints:                      *ignoreTaintsFlag,
+		LabelReplacements:                  *labelReplacements,
 		BalancingExtraIgnoredLabels:        *balancingIgnoreLabelsFlag,
 		BalancingLabels:                    *balancingLabelsFlag,
 		KubeConfigPath:                     *kubeConfigFile,
@@ -347,16 +356,22 @@ func buildAutoscaler(debuggingSnapshotter debuggingsnapshot.DebuggingSnapshotter
 	autoscalingOptions := createAutoscalingOptions()
 	kubeClient := createKubeClient(getKubeConfig())
 	eventsKubeClient := createKubeClient(getKubeConfig())
+	informerFactory := informers.NewSharedInformerFactory(kubeClient, 0)
+
+	// This isn't particularly useful at the moment. Perhaps we can accept
+	// a context and then our caller can decide about a suitable deadline.
+	stopChannel := make(chan struct{})
 
 	opts := core.AutoscalerOptions{
 		AutoscalingOptions:   autoscalingOptions,
 		ClusterSnapshot:      simulator.NewDeltaClusterSnapshot(),
 		KubeClient:           kubeClient,
+		InformerFactory:      informerFactory,
 		EventsKubeClient:     eventsKubeClient,
 		DebuggingSnapshotter: debuggingSnapshotter,
 	}
 
-	opts.Processors = ca_processors.DefaultProcessors()
+	opts.Processors = ca_processors.DefaultProcessors(informerFactory)
 	opts.Processors.TemplateNodeInfoProvider = nodeinfosprovider.NewDefaultTemplateNodeInfoProvider(nodeInfoCacheExpireTime)
 	opts.Processors.PodListProcessor = filteroutschedulable.NewFilterOutSchedulablePodListProcessor()
 
@@ -389,7 +404,27 @@ func buildAutoscaler(debuggingSnapshotter debuggingsnapshot.DebuggingSnapshotter
 	metrics.UpdateMemoryLimitsBytes(autoscalingOptions.MinMemoryTotal, autoscalingOptions.MaxMemoryTotal)
 
 	// Create autoscaler.
-	return core.NewAutoscaler(opts)
+	autoscaler, err := core.NewAutoscaler(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	// this MUST be called after all the informers/listers are acquired via the
+	// informerFactory....Lister()/informerFactory....Informer() methods
+	informerFactory.Start(stopChannel)
+
+	// Also wait for all informers to be up-to-date. This is necessary for
+	// objects that were added when creating the fake client. Without
+	// this wait, those objects won't be visible via the informers when
+	// the test runs.
+	synced := informerFactory.WaitForCacheSync(stopChannel)
+	for k, v := range synced {
+		if !v {
+			return nil, fmt.Errorf("failed to sync informer %v", k)
+		}
+	}
+
+	return autoscaler, err
 }
 
 func run(healthCheck *metrics.HealthCheck, debuggingSnapshotter debuggingsnapshot.DebuggingSnapshotter) {
