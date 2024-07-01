@@ -90,6 +90,10 @@ var (
 	// by the CAPI_GROUP env variable, it is initialized here.
 	machineAnnotationKey = getMachineAnnotationKey()
 
+	// clusterNameAnnotationKey is the annotation used by cluster-api for annotating nodes
+	// with their cluster name.
+	clusterNameAnnotationKey = getClusterNameAnnotationKey()
+
 	// clusterNamespaceAnnotationKey is the annotation used by cluster-api for annotating nodes
 	// with their cluster namespace.
 	clusterNamespaceAnnotationKey = getClusterNamespaceAnnotationKey()
@@ -333,6 +337,13 @@ func getMachineDeleteAnnotationKey() string {
 // the default group name by using the CAPI_GROUP environment variable.
 func getMachineAnnotationKey() string {
 	key := fmt.Sprintf("%s/machine", getCAPIGroup())
+	return key
+}
+
+// getClusterNameAnnotationKey returns the key that is used by cluster-api for annotating nodes
+// with their cluster name.
+func getClusterNameAnnotationKey() string {
+	key := fmt.Sprintf("%s/cluster-name", getCAPIGroup())
 	return key
 }
 
