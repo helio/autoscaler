@@ -98,6 +98,14 @@ var (
 	// with their cluster namespace.
 	clusterNamespaceAnnotationKey = getClusterNamespaceAnnotationKey()
 
+	// ownerKindAnnotationKey is the annotation used by cluster-api for annotating nodes
+	// with their owner kind.
+	ownerKindAnnotationKey = getOwnerKindAnnotationKey()
+
+	// ownerNameAnnotationKey is the annotation used by cluster-api for annotating nodes
+	// with their owner name.
+	ownerNameAnnotationKey = getOwnerNameAnnotationKey()
+
 	// nodeGroupMinSizeAnnotationKey and nodeGroupMaxSizeAnnotationKey are the keys
 	// used in MachineSet and MachineDeployment annotations to specify the limits
 	// for the node group. Because the keys can be affected by the CAPI_GROUP env
@@ -359,6 +367,20 @@ func getClusterNamespaceAnnotationKey() string {
 // the default group name by using the CAPI_GROUP environment variable.
 func getClusterNameLabel() string {
 	key := fmt.Sprintf("%s/cluster-name", getCAPIGroup())
+	return key
+}
+
+// getOwnerKindAnnotationKey returns the key that is used by cluster-api for annotating nodes
+// with their owner kind.
+func getOwnerKindAnnotationKey() string {
+	key := fmt.Sprintf("%s/owner-kind", getCAPIGroup())
+	return key
+}
+
+// getOwnerKindAnnotationKey returns the key that is used by cluster-api for annotating nodes
+// with their owner name.
+func getOwnerNameAnnotationKey() string {
+	key := fmt.Sprintf("%s/owner-name", getCAPIGroup())
 	return key
 }
 

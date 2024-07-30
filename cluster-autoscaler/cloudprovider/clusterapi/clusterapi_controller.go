@@ -158,6 +158,10 @@ func (c *machineController) findMachineDeployment(id string) (*unstructured.Unst
 	return c.findResourceByKey(c.machineDeploymentInformer.Informer().GetStore(), id)
 }
 
+func (c *machineController) findMachinePool(id string) (*unstructured.Unstructured, error) {
+	return c.findResourceByKey(c.machinePoolInformer.Informer().GetStore(), id)
+}
+
 func (c *machineController) findResourceByKey(store cache.Store, key string) (*unstructured.Unstructured, error) {
 	item, exists, err := store.GetByKey(key)
 	if err != nil {
@@ -229,6 +233,23 @@ func (c *machineController) run() error {
 	}
 
 	return nil
+}
+
+func (c *machineController) findScalableResourceByOwner(kind, ns, name string) (*unstructured.Unstructured, error) {
+	id := fmt.Sprintf("%s/%s", ns, name)
+	switch kind {
+	case machineSetKind:
+		return c.findMachineSet(id)
+	case machineDeploymentKind:
+		if c.machineDeploymentsAvailable {
+			return c.findMachineDeployment(id)
+		}
+	case machinePoolKind:
+		if c.machinePoolsAvailable {
+			return c.findMachinePool(id)
+		}
+	}
+	return nil, nil
 }
 
 func (c *machineController) findScalableResourceByProviderID(providerID normalizedProviderID) (*unstructured.Unstructured, error) {
@@ -698,10 +719,24 @@ func (c *machineController) nodeGroups() ([]cloudprovider.NodeGroup, error) {
 }
 
 func (c *machineController) nodeGroupForNode(node *corev1.Node) (*nodegroup, error) {
-	scalableResource, err := c.findScalableResourceByProviderID(normalizedProviderString(node.Spec.ProviderID))
-	if err != nil {
-		return nil, err
+	var scalableResource *unstructured.Unstructured
+	var err error
+
+	clusterNamespace, hasClusterNamespace := node.Annotations[clusterNamespaceAnnotationKey]
+	ownerKind, hasOwnerKind := node.Annotations[ownerKindAnnotationKey]
+	ownerName, hasOwnerName := node.Annotations[ownerNameAnnotationKey]
+	if hasClusterNamespace && hasOwnerKind && hasOwnerName {
+		scalableResource, err = c.findScalableResourceByOwner(ownerKind, clusterNamespace, ownerName)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		scalableResource, err = c.findScalableResourceByProviderID(normalizedProviderString(node.Spec.ProviderID))
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	if scalableResource == nil {
 		return nil, nil
 	}
