@@ -1603,7 +1603,10 @@ func TestStaticAutoscalerInstanceCreationErrors(t *testing.T) {
 		clusterStateRegistry:  clusterState,
 		lastScaleUpTime:       time.Now(),
 		lastScaleDownFailTime: time.Now(),
-		processorCallbacks:    processorCallbacks,
+		processors: &ca_processors.AutoscalingProcessors{
+			NodeGroupConfigProcessor: nodeGroupConfigProcessor,
+		},
+		processorCallbacks: processorCallbacks,
 	}
 
 	nodeGroupA := &mockprovider.NodeGroup{}
@@ -2173,10 +2176,13 @@ func TestRemoveOldUnregisteredNodes(t *testing.T) {
 		},
 		CloudProvider: provider,
 	}
+
+	nodeGroupConfigProcessor := nodegroupconfig.NewDefaultNodeGroupConfigProcessor(context.AutoscalingOptions.NodeGroupDefaults)
+
 	clusterState := clusterstate.NewClusterStateRegistry(provider, clusterstate.ClusterStateRegistryConfig{
 		MaxTotalUnreadyPercentage: 10,
 		OkTotalUnreadyCount:       1,
-	}, fakeLogRecorder, NewBackoff(), nodegroupconfig.NewDefaultNodeGroupConfigProcessor(context.AutoscalingOptions.NodeGroupDefaults))
+	}, fakeLogRecorder, NewBackoff(), nodeGroupConfigProcessor)
 	err := clusterState.UpdateNodes([]*apiv1.Node{ng1_1}, nil, now.Add(-time.Hour))
 	assert.NoError(t, err)
 
@@ -2186,6 +2192,9 @@ func TestRemoveOldUnregisteredNodes(t *testing.T) {
 	autoscaler := &StaticAutoscaler{
 		AutoscalingContext:   context,
 		clusterStateRegistry: clusterState,
+		processors: &ca_processors.AutoscalingProcessors{
+			NodeGroupConfigProcessor: nodeGroupConfigProcessor,
+		},
 	}
 
 	// Nothing should be removed. The unregistered node is not old enough.
@@ -2233,10 +2242,11 @@ func TestRemoveOldUnregisteredNodesAtomic(t *testing.T) {
 		},
 		CloudProvider: provider,
 	}
+	nodeGroupConfigProcessor := nodegroupconfig.NewDefaultNodeGroupConfigProcessor(context.AutoscalingOptions.NodeGroupDefaults)
 	clusterState := clusterstate.NewClusterStateRegistry(provider, clusterstate.ClusterStateRegistryConfig{
 		MaxTotalUnreadyPercentage: 10,
 		OkTotalUnreadyCount:       1,
-	}, fakeLogRecorder, NewBackoff(), nodegroupconfig.NewDefaultNodeGroupConfigProcessor(context.AutoscalingOptions.NodeGroupDefaults))
+	}, fakeLogRecorder, NewBackoff(), nodeGroupConfigProcessor)
 	err := clusterState.UpdateNodes([]*apiv1.Node{regNode}, nil, now.Add(-time.Hour))
 	assert.NoError(t, err)
 
@@ -2246,6 +2256,9 @@ func TestRemoveOldUnregisteredNodesAtomic(t *testing.T) {
 	autoscaler := &StaticAutoscaler{
 		AutoscalingContext:   context,
 		clusterStateRegistry: clusterState,
+		processors: &ca_processors.AutoscalingProcessors{
+			NodeGroupConfigProcessor: nodeGroupConfigProcessor,
+		},
 	}
 
 	// Nothing should be removed. The unregistered node is not old enough.
